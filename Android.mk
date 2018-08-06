@@ -19,3 +19,11 @@ LOCAL_SRC_FILES := futex_requeue.c main.c
 include $(BUILD_SHARED_LIBRARY)
 
 
+include $(CLEAR_VARS)
+
+LOCAL_MODULE    := futex_exploit_check
+LOCAL_SRC_FILES := futex_exploit_check.c
+LOCAL_LDFLAGS   += -llog
+LOCAL_CFLAGS    += -DDEBUG
+LOCAL_CFLAGS    += -fno-stack-protector -O0
+include $(BUILD_EXECUTABLE)

